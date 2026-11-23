@@ -1,0 +1,62 @@
+How to run Tessera
+==================
+
+Tessera keeps windows you tiled next to each other together. Arrange a few
+windows edge to edge, for example with Rectangle. When you later switch to one
+of them (with AltTab, Cmd-Tab, the Dock or a click), Tessera brings the others
+forward too, and the window you picked stays on top. Move one of the windows
+away by hand and the group is gone.
+
+You need a Mac with Apple silicon (M1 or newer) and macOS 14 or later.
+Nothing else has to be installed. Tessera has no window and no menu bar icon:
+it runs in a Terminal window.
+
+
+1. Put it in place
+
+   Move the Tessera file from this folder to a place where it can stay, for
+   example your home folder.
+
+
+2. Allow it once
+
+   Tessera is not notarised by Apple, so macOS blocks it the first time. Open
+   the Terminal app, paste this line and press Return:
+
+       xattr -d com.apple.quarantine ~/Tessera
+
+   (If you put Tessera somewhere else, change ~/Tessera to that place. You
+   can also type "xattr -d com.apple.quarantine " and drag the file into the
+   Terminal window.)
+
+
+3. Start it
+
+   In Terminal, type this and press Return:
+
+       ~/Tessera
+
+   The first time, macOS asks to give Terminal access to "Accessibility".
+   Tessera needs it to see and raise windows. Open System Settings ->
+   Privacy & Security -> Accessibility, turn on Terminal, and start Tessera
+   again with the same line.
+
+   Tessera now runs as long as this Terminal window stays open. Each switch
+   prints one line there. To stop Tessera, click the window and press
+   Control-C. It does not start by itself after a restart; run step 3 again.
+
+
+4. Use it
+
+   - Tile two or more windows next to each other, for example left and right
+     half. They form a group as soon as you place them.
+   - Switch to any of them: the others come forward with it.
+   - Drag one of them away: it leaves the group.
+   - Groups are per display. Tessera forgets them when you stop it.
+
+
+Privacy
+
+   Tessera only looks at the position and order of your windows. It sends
+   nothing anywhere and has no network access. The lines it prints show app
+   names and window positions, never window titles.
