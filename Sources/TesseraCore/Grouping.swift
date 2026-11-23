@@ -191,7 +191,16 @@ public struct Layouts<ID: Hashable> {
                 }
             }
             // A display that comes or goes moves every window at once; nobody arranged them.
-            for moved in windows where !tabs.contains(moved.id) && frames[moved.id] != nil && frames[moved.id] != moved.frame {
+            for moved in windows where !tabs.contains(moved.id) && frames[moved.id] != moved.frame {
+                guard frames[moved.id] != nil else {
+                    // A window seen for the first time forms a layout only where it takes no partner away:
+                    // started at login, Tessera looks before the apps reopen their windows already tiled.
+                    if let layout = inView.first(where: { $0.contains(moved.id) }),
+                       standing.allSatisfy({ $0.isDisjoint(with: layout) || $0.isSubset(of: layout) }) {
+                        form(layout)
+                    }
+                    continue
+                }
                 // A window that moved has left the layouts it formed before; the rest of each is still
                 // remembered, unless an older layout without it holds that rest: then that one comes back.
                 let without = formed.filter { !$0.contains(moved.id) }

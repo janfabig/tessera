@@ -485,6 +485,26 @@ struct LayoutMemoryTests {
         #expect(desk.layouts.partners(of: "a") == ["b"])
     }
 
+    // Regression, found live: started at login, Tessera looks before the apps reopen their windows,
+    // so windows that came back already tiled never formed a layout and nothing was raised.
+    @Test("windows that reopen already tiled form a layout")
+    func reopenedTiled() {
+        var desk = Desk(displays: displays)
+        desk.put("a", at: left)
+        desk.put("b", at: right)
+        #expect(desk.layouts.partners(of: "a") == ["b"])
+        desk.put("word", at: maximized)
+        desk.pick("a")
+        #expect(desk.isAbove("b", "word"))
+    }
+
+    @Test("thirds that reopen one by one form one layout")
+    func reopenedThirds() {
+        var desk = Desk(displays: displays)
+        zip(["a", "b", "c"], thirds).forEach { desk.put($0.0, at: $0.1) }
+        #expect(desk.layouts.partners(of: "b") == ["a", "c"])
+    }
+
     // Regression: unplugging the external display moves every window at once and wiped the memory.
     @Test("a display that goes away and comes back does not rearrange anything")
     func displayGoneAndBack() {
