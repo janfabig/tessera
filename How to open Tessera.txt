@@ -1,0 +1,79 @@
+How to open Tessera
+===================
+
+Tessera keeps windows you tiled next to each other together. Arrange a few
+windows edge to edge, for example with Rectangle. When you later switch to one
+of them (with AltTab, Cmd-Tab, the Dock or a click), Tessera brings the others
+forward too, and the window you picked stays on top. Move one of the windows
+away by hand and the group is gone.
+
+You need a Mac with Apple silicon (M1 or newer) and macOS 14 or later.
+Nothing else has to be installed. Tessera works in the background: it has no
+window and no Dock icon, only a small icon of nine squares in the menu bar.
+
+
+1. Install it
+
+   Drag Tessera.app into your Applications folder.
+
+
+2. Open it the first time
+
+   Tessera is not notarised by Apple, so macOS blocks it once.
+
+   - Double-click Tessera. macOS says it cannot check the app. Close the
+     message.
+   - Open System Settings -> Privacy & Security, scroll down and click
+     "Open Anyway". Confirm with your password or Touch ID.
+
+   Or do it in one step: open the Terminal app, paste this line and press
+   Return (change the path if you put Tessera in a subfolder). After that
+   Tessera opens like any other app.
+
+       xattr -dr com.apple.quarantine /Applications/Tessera.app
+
+
+3. Give it Accessibility access
+
+   Tessera needs it to see and raise windows. When you open it, macOS asks.
+   Click "Open System Settings" and turn on Tessera under Privacy & Security
+   -> Accessibility. Tessera starts working right away.
+
+   If you closed that message, open the page yourself: System Settings ->
+   Privacy & Security -> Accessibility, click +, pick Tessera and turn it on.
+
+   Tessera also adds itself to your Login Items, so it starts again whenever
+   you log in. To stop that, untick "Start at Login" in its menu.
+
+
+4. Use it
+
+   - Tile two or more windows next to each other, for example left and right
+     half. They form a group as soon as you place them.
+   - Switch to any of them: the others come forward with it.
+   - Drag one of them away: it leaves the group.
+   - Groups are per display. Tessera forgets them when it quits.
+
+
+5. The menu
+
+   Click the nine squares in the menu bar.
+
+   - Pause Grouping: switching raises only the window you pick, until you
+     untick it. The icon is greyed out meanwhile.
+   - Start at Login: whether Tessera starts when you log in.
+   - Quit Tessera.
+
+
+6. Updates
+
+   Quit Tessera and replace Tessera.app in your Applications folder with the
+   new one. Do step 2 again. macOS then treats it as a new app, so in
+   Privacy & Security -> Accessibility select the old Tessera entry, remove
+   it with the minus button and open Tessera to be asked again.
+
+
+Privacy
+
+   Tessera only looks at the position and order of your windows. It sends
+   nothing anywhere and has no network access.

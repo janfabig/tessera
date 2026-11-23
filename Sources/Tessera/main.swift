@@ -1,4 +1,5 @@
 import AppKit
+import ServiceManagement
 import TesseraCore
 
 // Private but long-stable (window switchers rely on it): the window-server number of an Accessibility window.
@@ -12,6 +13,7 @@ var lastFocused: AXUIElement?
 var layouts = Layouts<CGWindowID>()
 var observation: Timer?
 var loggedLayouts: [Set<CGWindowID>] = []
+var paused = false
 
 func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
     var value: CFTypeRef?
@@ -131,6 +133,7 @@ func attach(_ pid: pid_t) {
 /// or reports a focus change between its own windows. The group is the layout the window was last
 /// arranged in, checked against the current frames.
 func focusMoved(in pid: pid_t) {
+    guard !paused else { return }  // windows moved meanwhile are still remembered: observing goes on
     // Ask the app rather than trust the notification: after our own raises its window is stale.
     guard let focused = focusedWindow(of: pid) else { return }
     // Our raises can echo back as focus reports for the window just handled; following them would loop.
@@ -161,31 +164,110 @@ func focusMoved(in pid: pid_t) {
     AXUIElementSetAttributeValue(focused, kAXMainAttribute as CFString, kCFBooleanTrue)
 }
 
-let trusted = AXIsProcessTrustedWithOptions(
-    [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-)
-guard trusted else {
-    print("Grant Accessibility access to the app you started Tessera from (your terminal) in System Settings, then start it again.")
-    exit(1)
+func start() {
+    // A hung app must not stall every switch: the default wait per Accessibility call is several seconds.
+    AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 1.0)
+
+    for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
+        attach(app.processIdentifier)
+    }
+    observeSoon()
+    let center = NSWorkspace.shared.notificationCenter
+    // Switching between apps (AltTab, Dock, Cmd-Tab) reports only an activation, never a focus change.
+    center.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { note in
+        lastFocused = nil  // an activation is never an echo of our own raises
+        guard let app = runningApp(note), app.activationPolicy == .regular else { return }
+        attach(app.processIdentifier)  // covers apps launched after Tessera
+        focusMoved(in: app.processIdentifier)
+    }
+    center.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { note in
+        guard let app = runningApp(note), let observer = observers.removeValue(forKey: app.processIdentifier) else { return }
+        CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .defaultMode)
+    }
 }
 
-// A hung app must not stall every switch: the default wait per Accessibility call is several seconds.
-AXUIElementSetMessagingTimeout(AXUIElementCreateSystemWide(), 1.0)
+/// Three by three mosaic stones with one lit, as in the app icon. A template image, so macOS tints it.
+func mosaicGlyph() -> NSImage {
+    let image = NSImage(size: NSSize(width: 18, height: 18), flipped: true) { _ in
+        let stone: CGFloat = 4.4, step: CGFloat = 6, inset: CGFloat = 0.8
+        for row in 0..<3 {
+            for column in 0..<3 {
+                let lit = row == litStone.row && column == litStone.column
+                NSColor.black.withAlphaComponent(lit ? 1 : 0.4).setFill()
+                let frame = NSRect(x: inset + CGFloat(column) * step, y: inset + CGFloat(row) * step, width: stone, height: stone)
+                NSBezierPath(roundedRect: frame, xRadius: 1.1, yRadius: 1.1).fill()
+            }
+        }
+        return true
+    }
+    image.isTemplate = true
+    return image
+}
+let litStone = (row: 0, column: 2)
 
-for app in NSWorkspace.shared.runningApplications where app.activationPolicy == .regular {
-    attach(app.processIdentifier)
+/// The menu bar icon: pause grouping, start at login, quit.
+final class Menu: NSObject, NSMenuDelegate {
+    let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+    let pause = NSMenuItem(title: "Pause Grouping", action: #selector(togglePause), keyEquivalent: "")
+    let login = NSMenuItem(title: "Start at Login", action: #selector(toggleLogin), keyEquivalent: "")
+
+    override init() {
+        super.init()
+        item.button?.image = mosaicGlyph()
+        item.button?.toolTip = "Tessera"
+        let menu = NSMenu()
+        menu.delegate = self
+        for entry in [pause, login] {
+            entry.target = self
+            menu.addItem(entry)
+        }
+        menu.addItem(.separator())
+        let quit = NSMenuItem(title: "Quit Tessera", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        quit.target = NSApp
+        menu.addItem(quit)
+        item.menu = menu
+    }
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        pause.state = paused ? .on : .off
+        login.state = SMAppService.mainApp.status == .enabled ? .on : .off
+    }
+
+    @objc func togglePause() {
+        paused.toggle()
+        item.button?.appearsDisabled = paused
+    }
+
+    @objc func toggleLogin() {
+        let service = SMAppService.mainApp
+        do {
+            if service.status == .enabled { try service.unregister() } else { try service.register() }
+        } catch {
+            // macOS may refuse or want approval first; its Login Items page lets the user decide.
+            SMAppService.openSystemSettingsLoginItems()
+        }
+    }
 }
-observeSoon()
-let center = NSWorkspace.shared.notificationCenter
-// Switching between apps (AltTab, Dock, Cmd-Tab) reports only an activation, never a focus change.
-center.addObserver(forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main) { note in
-    lastFocused = nil  // an activation is never an echo of our own raises
-    guard let app = runningApp(note), app.activationPolicy == .regular else { return }
-    attach(app.processIdentifier)  // covers apps launched after Tessera
-    focusMoved(in: app.processIdentifier)
+
+// Start at login, once: after that the choice in the menu or in System Settings stands. Only an
+// installed copy is added, never one opened from Downloads or the build folder.
+let loginKey = "addedToLoginItems"
+if Bundle.main.bundlePath.contains("/Applications/"),
+   !UserDefaults.standard.bool(forKey: loginKey), (try? SMAppService.mainApp.register()) != nil {
+    UserDefaults.standard.set(true, forKey: loginKey)
 }
-center.addObserver(forName: NSWorkspace.didTerminateApplicationNotification, object: nil, queue: .main) { note in
-    guard let app = runningApp(note), let observer = observers.removeValue(forKey: app.processIdentifier) else { return }
-    CFRunLoopRemoveSource(CFRunLoopGetMain(), AXObserverGetRunLoopSource(observer), .defaultMode)
+
+let app = NSApplication.shared
+let menu = Menu()
+
+// macOS shows its own Accessibility prompt; Tessera starts as soon as access is granted, no restart needed.
+if AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary) {
+    start()
+} else {
+    Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { timer in
+        guard AXIsProcessTrusted() else { return }
+        timer.invalidate()
+        start()
+    }
 }
-RunLoop.main.run()
+app.run()

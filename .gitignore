@@ -1,4 +1,4 @@
 .build/
 .swiftpm/
-tessera.log
 dist/
+tessera.log
