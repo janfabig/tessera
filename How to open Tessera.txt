@@ -62,6 +62,9 @@ window and no Dock icon, only a small icon of nine squares in the menu bar.
    - Pause Grouping: switching raises only the window you pick, until you
      untick it. The icon is greyed out meanwhile.
    - Start at Login: whether Tessera starts when you log in.
+   - Hide Menu Bar Icon: Tessera keeps working without the icon. To get it
+     back, open Tessera.app again (for example from your Applications
+     folder or with Spotlight).
    - Quit Tessera.
 
 

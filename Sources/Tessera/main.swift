@@ -205,8 +205,8 @@ func mosaicGlyph() -> NSImage {
 }
 let litStone = (row: 0, column: 2)
 
-/// The menu bar icon: pause grouping, start at login, quit.
-final class Menu: NSObject, NSMenuDelegate {
+/// The menu bar icon: pause grouping, start at login, hide the icon, quit.
+final class Menu: NSObject, NSMenuDelegate, NSApplicationDelegate {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     let pause = NSMenuItem(title: "Pause Grouping", action: #selector(togglePause), keyEquivalent: "")
     let login = NSMenuItem(title: "Start at Login", action: #selector(toggleLogin), keyEquivalent: "")
@@ -222,6 +222,10 @@ final class Menu: NSObject, NSMenuDelegate {
             menu.addItem(entry)
         }
         menu.addItem(.separator())
+        let hide = NSMenuItem(title: "Hide Menu Bar Icon", action: #selector(hideIcon), keyEquivalent: "")
+        hide.target = self
+        menu.addItem(hide)
+        item.isVisible = !UserDefaults.standard.bool(forKey: hiddenKey)
         let quit = NSMenuItem(title: "Quit Tessera", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quit.target = NSApp
         menu.addItem(quit)
@@ -236,6 +240,18 @@ final class Menu: NSObject, NSMenuDelegate {
     @objc func togglePause() {
         paused.toggle()
         item.button?.appearsDisabled = paused
+    }
+
+    @objc func hideIcon() {
+        item.isVisible = false
+        UserDefaults.standard.set(true, forKey: hiddenKey)
+    }
+
+    /// Opening Tessera.app while it runs brings the hidden icon back: the only way left to reach the menu.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        item.isVisible = true
+        UserDefaults.standard.set(false, forKey: hiddenKey)
+        return false
     }
 
     @objc func toggleLogin() {
@@ -258,7 +274,9 @@ if Bundle.main.bundlePath.contains("/Applications/"),
 }
 
 let app = NSApplication.shared
+let hiddenKey = "menuBarIconHidden"
 let menu = Menu()
+app.delegate = menu
 
 // macOS shows its own Accessibility prompt; Tessera starts as soon as access is granted, no restart needed.
 if AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary) {
